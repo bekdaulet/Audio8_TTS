@@ -184,8 +184,12 @@ def _number_with_suffix(number: str, suffix: str) -> str:
     return cardinal(value) + suffix
 
 
-def normalize_kk(text: str) -> str:
-    """Normalize Kazakh text into the spoken form used for training."""
+def normalize_kk(text: str, *, lowercase: bool = False) -> str:
+    """Normalize Kazakh text into the spoken form used for training.
+
+    ``lowercase=True`` gives the exact input form of the Kazakh fine-tune,
+    which was trained on lower-cased KazakhTTS2 text.
+    """
     text = unicodedata.normalize("NFC", str(text))
     text = _fix_homoglyphs(text)
     text = text.replace("−", "-")
@@ -270,11 +274,13 @@ def normalize_kk(text: str) -> str:
 
     text = re.sub(r"\s+([,.!?;:»)])", r"\1", text)
     text = re.sub(r"([«(])\s+", r"\1", text)
-    return re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
+    return text.lower() if lowercase else text
 
 
 if __name__ == "__main__":
     import sys
 
+    lower = "--lowercase" in sys.argv[1:]
     for line in sys.stdin:
-        print(normalize_kk(line))
+        print(normalize_kk(line, lowercase=lower))

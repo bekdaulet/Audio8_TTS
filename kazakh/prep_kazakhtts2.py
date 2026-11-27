@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build raw manifests and utterance-level splits for ISSAI KazakhTTS2.
 
-Reads ``<root>/<speaker>/{Audio,Transcripts}/<name>.{wav,txt}``, normalizes
+Reads ``<root>/<speaker>/[<domain>/]{Audio,Transcripts}/<name>.{wav,txt}``, normalizes
 the text, drops clips that are too short or long or whose speaking rate
 suggests a transcript mismatch, and writes ``train/val/test`` raw manifests
 (id, text, audio, seconds) with ids ``kk_<speaker>_<name>``. Validation and
@@ -70,12 +70,17 @@ def main() -> None:
     jobs = [
         (speaker_dir.name, str(wav))
         for speaker_dir in sorted(p for p in args.root.iterdir() if p.is_dir())
-        for wav in sorted((speaker_dir / "Audio").glob("*.wav"))
+        # Most speakers use <spk>/Audio/; M1 has <spk>/{Book,News,Wiki}/Audio/.
+        for wav in sorted(speaker_dir.rglob("*.wav"))
+        if wav.parent.name == "Audio"
     ]
     with ProcessPoolExecutor(args.workers) as pool:
         items = list(pool.map(read_item, jobs, chunksize=256))
 
     stats: Counter = Counter()
+    ids = Counter(item["id"] for item in items if item and "id" in item)
+    if max(ids.values()) > 1:
+        raise ValueError(f"duplicate ids: {[k for k, v in ids.items() if v > 1][:5]}")
     kept = []
     for item in items:
         if item is None or "error" in item:

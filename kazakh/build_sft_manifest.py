@@ -37,6 +37,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-ref-seconds", type=float, default=10.0)
     parser.add_argument("--max-target-seconds", type=float, default=25.0)
     parser.add_argument("--max-rows", type=int, help="Random subset of this many target rows.")
+    parser.add_argument(
+        "--lowercase-prefix",
+        default="kk_",
+        help="Lower-case text of rows whose id has this prefix (KazakhTTS2 casing differs "
+        "by speaker, so case would leak speaker identity). Empty disables.",
+    )
     parser.add_argument("--seed", type=int, default=0)
     return parser.parse_args()
 
@@ -54,6 +60,11 @@ def main() -> None:
             row["speaker"] = "_".join(row["id"].split("_")[:2])
             row["frames"] = np.load(row["target_codes"], mmap_mode="r").shape[1]
             rows.append(row)
+
+    if args.lowercase_prefix:
+        for row in rows:
+            if row["id"].startswith(args.lowercase_prefix):
+                row["text"] = row["text"].lower()
 
     by_speaker: dict[str, list[dict]] = defaultdict(list)
     for row in rows:

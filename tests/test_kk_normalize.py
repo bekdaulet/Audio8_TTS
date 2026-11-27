@@ -90,3 +90,9 @@ def test_plain_text_is_unchanged() -> None:
 
 def test_decomposed_short_i_is_composed() -> None:
     assert normalize_kk("й") == "й"
+
+
+def test_lowercase_option() -> None:
+    assert normalize_kk("Сағат 14:30-да ҚР", lowercase=True) == (
+        "сағат он төрт отызда қазақстан республикасы"
+    )
