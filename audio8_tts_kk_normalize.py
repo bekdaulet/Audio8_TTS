@@ -38,6 +38,11 @@ _HOMOGLYPHS = str.maketrans(
 
 # Abbreviations matched as whole tokens (case-sensitive), longest first.
 ABBREVIATIONS = {
+    "км/сағ": "шақырым сағатына",
+    "б.з.б.": "біздің заманымызға дейін",
+    "б.з.д.": "біздің заманымызға дейін",
+    "б.д.д.": "біздің дәуірімізге дейін",
+    "б.з.": "біздің заманымыз",
     "т.с.с.": "тағы сол сияқты",
     "т.б.": "тағы басқа",
     "ҚР": "Қазақстан Республикасы",
@@ -55,6 +60,7 @@ ABBREVIATIONS = {
     "га": "гектар",
     "тг": "теңге",
 }
+FRACTIONS = {"½": "жарым", "¼": "төрттен бір", "¾": "төрттен үш", "⅓": "үштен бір", "⅔": "үштен екі"}
 SYMBOLS = {"%": "пайыз", "₸": "теңге", "$": "доллар", "€": "еуро", "№": "нөмір", "°": "градус"}
 
 ROMAN = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
@@ -249,6 +255,10 @@ def normalize_kk(text: str) -> str:
     text = re.sub(r"([$€])\s*(\d+)", lambda m: f"{m.group(2)} {SYMBOLS[m.group(1)]}", text)
     for symbol, word in SYMBOLS.items():
         text = text.replace(symbol, f" {word} ")
+
+    # Vulgar fractions: 24½ → 24 жарым
+    for fraction, word in FRACTIONS.items():
+        text = text.replace(fraction, f" {word} ")
 
     # Remaining plain integers
     text = re.sub(r"\d+", lambda m: f" {cardinal(int(m.group()))} ", text)
