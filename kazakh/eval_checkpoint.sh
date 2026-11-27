@@ -14,6 +14,21 @@ EVAL_ROOT="${EVAL_ROOT:-outputs/eval}"
 OUT="${EVAL_ROOT}/${TAG}"
 mkdir -p "${OUT}"
 
+# Trainer checkpoints hold weights, code and codec but not the processor;
+# copy the processor/tokenizer files from the base model snapshot.
+if [[ -d "${MODEL}" && ! -f "${MODEL}/tokenizer.json" ]]; then
+  "${PYTHON}" - "${MODEL}" "${BASE_MODEL:-Edge0/Audio8-TTS-Realistic-Air}" <<'EOF'
+import shutil, sys
+from pathlib import Path
+from huggingface_hub import snapshot_download
+target, base = Path(sys.argv[1]), Path(snapshot_download(sys.argv[2], local_files_only=True))
+for name in ("processing_arktts.py", "processor_config.json", "special_tokens_map.json",
+             "tokenizer_config.json", "tokenizer.json"):
+    if not (target / name).exists():
+        shutil.copy2(base / name, target / name)
+EOF
+fi
+
 "${PYTHON}" "${ROOT}/audio8_tts_infer.py" \
   --model "${MODEL}" \
   --input-jsonl "${EVAL_JSONL}" \
