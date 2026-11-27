@@ -40,4 +40,4 @@ LOGGING_STEPS="${LOGGING_STEPS:-20}" \
 DATALOADER_NUM_WORKERS="${DATALOADER_NUM_WORKERS:-4}" \
 REPORT_TO="${REPORT_TO:-tensorboard}" \
 PYTHON="${PYTHON}" \
-bash "${ROOT}/audio8_tts_sft.sh" --save_only_model true "$@"
+bash "${ROOT}/audio8_tts_sft.sh" --save_only_model "${SAVE_ONLY_MODEL:-true}" "$@"
