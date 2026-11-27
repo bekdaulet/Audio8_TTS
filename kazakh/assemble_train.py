@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assemble a shuffled multi-corpus SFT manifest with fresh references per epoch.
 
-Each ``--corpus`` is ``path.jsonl[:max_rows]``. For every epoch the rows of
+Each ``--corpus`` is ``path.jsonl[:max_rows[:no_reference_ratio]]``. For every epoch the rows of
 each corpus are re-sampled (if ``max_rows`` is set) and re-paired with new
 same-speaker references, then all epochs are concatenated in epoch order,
 each epoch shuffled. Training one Trainer epoch over the result therefore
@@ -36,13 +36,14 @@ def main() -> None:
         for epoch in range(args.epochs):
             rows = []
             for index, spec in enumerate(args.corpus):
-                path, _, limit = spec.partition(":")
+                path, _, rest = spec.partition(":")
+                limit, _, no_ref = rest.partition(":")
                 # Same directory as the output, so relative paths stay valid.
                 part = output.parent / f".{output.stem}.e{epoch}_{index}.tmp.jsonl"
                 command = [
                     sys.executable, str(HERE / "build_sft_manifest.py"),
                     "--input-jsonl", path, "--output-jsonl", str(part),
-                    "--no-reference-ratio", str(args.no_reference_ratio),
+                    "--no-reference-ratio", no_ref or str(args.no_reference_ratio),
                     "--seed", str(args.seed + 1000 * epoch + index),
                 ]
                 if limit:
