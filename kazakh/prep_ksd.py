@@ -64,7 +64,10 @@ def main() -> None:
                     if not text:
                         continue
                     payload = audio[index]["bytes"].as_py()
-                    samples, rate = sf.read(io.BytesIO(payload), dtype="float32")
+                    try:
+                        samples, rate = sf.read(io.BytesIO(payload), dtype="float32")
+                    except sf.LibsndfileError:  # a few clips in the HF copy are not decodable
+                        continue
                     if samples.ndim > 1:
                         samples = samples.mean(axis=1)
                     seconds = len(samples) / rate
