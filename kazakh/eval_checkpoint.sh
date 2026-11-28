@@ -35,7 +35,8 @@ fi
   --output-dir "${OUT}/wav" \
   --batch-size "${INFER_BATCH_SIZE:-8}" \
   --seed "${SEED:-42}" \
-  --guard-chars-per-second "${GUARD_CPS:-0}"
+  --guard-chars-per-second "${GUARD_CPS:-0}" \
+  ${REF_DBFS:+--reference-rms-dbfs "${REF_DBFS}"}
 
 "${PYTHON}" "${HERE}/eval_metrics.py" \
   --manifest "${EVAL_JSONL}" \

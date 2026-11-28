@@ -66,6 +66,12 @@ def parse_args() -> argparse.Namespace:
         help="if > 0, resample outputs longer than len(text) / this + --guard-slack seconds",
     )
     parser.add_argument("--guard-slack", type=float, default=2.0)
+    parser.add_argument(
+        "--reference-rms-dbfs",
+        type=float,
+        default=None,
+        help="scale each reference clip to this RMS level (peak kept below -1 dBFS); e.g. -23",
+    )
     parser.add_argument("--guard-retries", type=int, default=2)
     parser.add_argument("--save-codes", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
@@ -235,6 +241,17 @@ def main() -> None:
     sample_rate = int(model.config.codec_sample_rate)
     generator = torch.Generator(device=device).manual_seed(args.seed)
 
+    def load_reference(path: Path) -> Any:
+        # The model copies the reference's loudness and quiet clips weaken cloning,
+        # so optionally bring every reference to one level.
+        if args.reference_rms_dbfs is None:
+            return path
+        audio, rate = sf.read(str(path), dtype="float32", always_2d=True)
+        audio = audio.mean(axis=1)
+        gain = 10 ** (args.reference_rms_dbfs / 20) / (float(np.sqrt(np.mean(audio**2))) + 1e-9)
+        gain = min(gain, 0.89 / (float(np.abs(audio).max()) + 1e-9))
+        return audio * gain, rate
+
     def synthesize(batch: list[InferenceItem], max_new_tokens: int) -> dict[str, Any]:
         processor_kwargs: dict[str, Any] = {
             "text": [item.text for item in batch],
@@ -242,7 +259,7 @@ def main() -> None:
         }
         if batch[0].reference_audio is not None:
             processor_kwargs.update(
-                reference_audio=[item.reference_audio for item in batch],
+                reference_audio=[load_reference(item.reference_audio) for item in batch],
                 reference_text=[item.reference_text for item in batch],
             )
         inputs = processor(**processor_kwargs)
