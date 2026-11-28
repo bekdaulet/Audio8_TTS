@@ -1,4 +1,4 @@
-# Audio8-TTS-Realistic-Air: Kazakh fine-tune, evaluation report (2026-11-28)
+# Audio8-TTS-Realistic-Air: Kazakh fine-tune, evaluation report (2026-11-28, updated 19:45)
 
 **Result.** The fine-tuned model `audio8-kk-v1` (akhmed: `/extra/beka/audio8-kk/work/final/audio8-kk-v1`)
 pronounces Kazakh about as well as the real recordings do, by ASR. On voices it has never heard,
@@ -33,6 +33,46 @@ speakers ≈ 0.73.
 - **Real-recording kk/unseen SIM.** It is 0.73 because FLEURS has no speaker ids: the real
   recording of the target sentence is usually a different person from the reference clip. That
   is why SIM is measured against the reference clip.
+
+## Recommended inference settings (added 19:45)
+Two inference options, both on branch `kazakh` in `audio8_tts_infer.py`, fix most of what is
+left. Neither needs retraining.
+- `--guard-chars-per-second 5`: if an output is longer than `len(text)/5 + 2` s (real speech runs
+  8.5-17 chars/s), resample it, up to 2 retries. Runaway outputs that never stop were the most
+  common catastrophic failure. The guard never fires on real recordings.
+- `--reference-rms-dbfs -23`: scale the reference clip to a normal level before encoding. FLEURS
+  references are ≈ -54 dBFS, and the model copies the reference loudness: unseen-voice outputs
+  were -43 to -50 dBFS (Bek: "both are very quiet"). Quiet references also caused much of the
+  drift toward the KazakhTTS2 voices.
+
+Same eval, 2 seeds, both models with both options (`outputs/eval/v1r_*`, `baser_*`); "bad" = items
+with CER > 30 %, per seed:
+
+| group | base | base + options | v1 | **v1 + options** |
+|---|---:|---:|---:|---:|
+| kk/seen CER | 15.0 | 14.9 | 8.2 | 8.8 |
+| kk/unseen CER | 24.0 | 15.3 | 8.1 | 9.2 |
+| kk/noref CER | 15.4 | 15.4 | 11.1 | **9.0** |
+| kk/unseen SIM | 0.951 | 0.952 | 0.938 | 0.928 |
+| collapse | 6 % | 1.5 % | 16.5 % | **7.5 %** |
+| unseen output loudness | -50 dBFS | -23 | -43 | **-24** |
+| en / ru CER | 0.8 / 3.1 | 0.8 / 1.7 | 1.1 / 2.7 | 1.0 / 3.8 |
+| bad seen / unseen / noref | 6,3 / 9,6 / 1,0 | 2,5 / 0,0 / 1,0 | 1,3 / 0,1 / 1,1 | 3,2 / 2,1 / 0,0 |
+| longest output | 22 s | 21 s | 46 s | 34 s |
+
+Unseen SIM and collapse swing by ±0.01 and ±5 points between runs (60 items). Over all runs of
+v1, collapse averages ≈ 6 % with normalized references and ≈ 15 % without.
+
+## Larger runs after v1: v2 and v3 (all 810 KSD speakers)
+| run | data | kk/seen | kk/unseen | kk/noref | unseen SIM | collapse | ru |
+|---|---|---:|---:|---:|---:|---:|---:|
+| v2 | + all 121 KSD shards (90k clips, 810 spk), KSD ≈ 90 % of data | 10.2 | 8.8 | 23.3 | 0.945 | 6 % | 5.8 |
+| v3 | KSD strict (Whisper CER ≤ 10 %, normal speaking rate: 61.8k clips, 809 spk) + KazakhTTS2 12k + EN/RU 4k each | 9.5 | 8.2 | 13.4 | 0.945 | 10 % | 3.9 |
+| v3 + guard | | 8.7 | 8.4 | 8.7 | 0.941 | 14 % | 2.8 |
+| v1 + guard | | 8.7 | 7.0 | 9.0 | 0.935 | 13 % | 4.7 |
+
+More KSD speakers lower the drift, but the noisy phone-quality KSD audio also adds runaway and
+garbled outputs. Once both are guarded, v3 is not better than v1. **v1 stays the release.**
 
 ## What made the difference (pilots, all ≈ 1 h on one RTX 5000 Ada)
 
@@ -75,18 +115,27 @@ Lessons:
   script is `kazakh/train_v1.sh` (run from `/extra/beka/audio8-kk`).
 
 ## Listening samples
-`samples/final/` holds 19 WAVs and a README with the texts and per-item numbers. The items were
-picked automatically as typical, closest to the median CER/SIM, not the best ones:
+`samples/final/` holds 21 WAVs and a README with the texts and per-item numbers, generated with the
+recommended inference settings (base and v1 alike). The items were picked automatically as
+typical, closest to the median CER/SIM, not the best ones:
 - 2 KazakhTTS2 voices: reference, base, fine-tuned;
 - 3 unseen FLEURS voices (cloning): reference, base, fine-tuned;
-- 1 English and 1 Russian clone: base, fine-tuned.
+- 1 English and 1 Russian clone: reference, base, fine-tuned.
 
-Older pilot comparisons are in `samples/pilot/`.
+The first set (without the inference options), which Bek listened to, is in `samples/v1_plain/`;
+older pilot comparisons are in `samples/pilot/`.
+
+Bek's notes on `samples/v1_plain/`: base sounds bad in Kazakh, the fine-tuned model "quite nice,
+though not ideal yet". On some unseen voices the clone sounds like a different person (higher
+pitch); quiet output on quiet references; odd breath noises in pauses on one KazakhTTS2 voice
+(F3); Russian stress errors (игры́ for и́гры), present in the base model as well.
 
 ## Limits and open points
-- **Collapse remains higher than base:** 16.5 % vs 6 %. On some unseen voices v1 still drifts
-  toward a KazakhTTS2 timbre. The most promising fix is the rest of KSD: 93 more shards, about
-  650 more speakers, about 54 GB. That needs Bek's yes.
+- **Collapse remains higher than base:** 7.5 % vs 1.5 % with the recommended settings. All 121
+  KSD shards were fetched and tried (v2, v3); they lower the drift but add failures.
+- **Remaining failures:** with the guard, 1-3 of 100 KazakhTTS2 sentences and 1-2 of 60 cloned
+  sentences still come out garbled; a few runaways resist 2 retries.
+- **Breath noises** in pauses on voice F3 (Bek's note); not measured yet.
 - **Small eval set:** 60 unseen-voice items, each with its own FLEURS reference clip. No human MOS yet;
   please listen to `samples/final/`.
 - **ASR-based metrics:** Whisper large-v3 Kazakh is itself imperfect; real recordings score 9.5 %
