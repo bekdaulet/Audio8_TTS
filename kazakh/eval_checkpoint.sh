@@ -34,7 +34,8 @@ fi
   --input-jsonl "${EVAL_JSONL}" \
   --output-dir "${OUT}/wav" \
   --batch-size "${INFER_BATCH_SIZE:-8}" \
-  --seed "${SEED:-42}"
+  --seed "${SEED:-42}" \
+  --guard-chars-per-second "${GUARD_CPS:-0}"
 
 "${PYTHON}" "${HERE}/eval_metrics.py" \
   --manifest "${EVAL_JSONL}" \

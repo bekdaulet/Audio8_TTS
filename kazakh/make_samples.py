@@ -17,7 +17,7 @@ from pathlib import Path
 
 # group -> (number of items, include the reference recording)
 PLAN = {("kk", "seen"): (2, True), ("kk", "unseen"): (3, True),
-        ("en", "clone"): (1, False), ("ru", "clone"): (1, False)}
+        ("en", "clone"): (1, True), ("ru", "clone"): (1, True)}
 
 
 def load(path: Path) -> dict[str, dict]:

@@ -59,6 +59,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=50)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--greedy", action="store_true")
+    parser.add_argument(
+        "--guard-chars-per-second",
+        type=float,
+        default=0.0,
+        help="if > 0, resample outputs longer than len(text) / this + --guard-slack seconds",
+    )
+    parser.add_argument("--guard-slack", type=float, default=2.0)
+    parser.add_argument("--guard-retries", type=int, default=2)
     parser.add_argument("--save-codes", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
@@ -274,6 +282,25 @@ def main() -> None:
                 codes = retry_output.codes[0, :, :code_length]
                 waveform_length = int(retry["waveform_lengths"][0])
                 waveform = retry["waveforms"][0, :waveform_length]
+
+            if args.guard_chars_per_second > 0:
+                limit = len(item.text) / args.guard_chars_per_second + args.guard_slack
+                best = (finished, code_length, codes, waveform_length, waveform)
+                for _ in range(args.guard_retries):
+                    if best[0] and best[3] / sample_rate <= limit:
+                        break
+                    retry = synthesize([item], args.max_new_tokens)
+                    candidate = (
+                        bool(retry["output"].finished[0]),
+                        int(retry["output"].code_lengths[0]),
+                        retry["output"].codes[0, :, : int(retry["output"].code_lengths[0])],
+                        int(retry["waveform_lengths"][0]),
+                        retry["waveforms"][0, : int(retry["waveform_lengths"][0])],
+                    )
+                    # Prefer finished outputs, then the shorter one.
+                    if (not candidate[0], candidate[3]) < (not best[0], best[3]):
+                        best = candidate
+                finished, code_length, codes, waveform_length, waveform = best
 
             waveform_array = waveform.float().cpu().numpy()
             codes_array = codes.cpu().numpy()
