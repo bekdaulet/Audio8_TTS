@@ -39,9 +39,12 @@ def main() -> None:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     manifest = args.out_dir / "raw.jsonl"
-    done = set()
+    done, seen_ids = set(), set()
     if manifest.exists():
-        done = {json.loads(line)["shard"] for line in manifest.open(encoding="utf-8")}
+        for line in manifest.open(encoding="utf-8"):
+            row = json.loads(line)
+            done.add(row["shard"])
+            seen_ids.add(row["id"])
     rng = random.Random(args.seed)
     totals = {"rows": 0, "speakers": set(), "seconds": 0.0}
     with manifest.open("a", encoding="utf-8") as handle:
@@ -74,10 +77,14 @@ def main() -> None:
                     if not args.min_seconds <= seconds <= args.max_seconds:
                         continue
                     stem = Path(audio[index]["path"].as_py()).stem
+                    row_id = f"ksd_{speaker}_{stem.split('_', 1)[1]}"
+                    if row_id in seen_ids:  # the HF copy repeats some clips in two shards
+                        continue
+                    seen_ids.add(row_id)
                     path = args.out_dir / "wav" / speaker / f"{stem}.wav"
                     path.parent.mkdir(parents=True, exist_ok=True)
                     sf.write(path, samples, rate, subtype="PCM_16")
-                    row = {"id": f"ksd_{speaker}_{stem.split('_', 1)[1]}", "text": text,
+                    row = {"id": row_id, "text": text,
                            "audio": str(path.resolve()), "seconds": round(seconds, 3),
                            "shard": shard.name}
                     handle.write(json.dumps(row, ensure_ascii=False) + "\n")
